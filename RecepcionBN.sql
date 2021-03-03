@@ -6,15 +6,14 @@ DECLARE
 	vFechaProceso		DATE:= SYSDATE;
 	vNumerocuota		prestamocuotas.numerocuota%TYPE;
 
-	vNrocli				VARCHAR(15);
-	vNroSer				VARCHAR(15);
-	vCodSVC				VARCHAR(2) := '33'; --Codigo del Servicio SVC
+	vOrdenCobro			VARCHAR(12); --Variable que retorna, contiene ACT/ATR - Fecha envio (YYYYMMDD)
+	vIdentificador		VARCHAR(7) := '0180100'; --Codigo Banco + Cliente
+
 BEGIN
-	linebuf := '330020200181283-ACT202011191000000000012841004210105201103000000000002600R CT0089645201L27ADMIN   2020111915495733V 000000000000000';
-	linebuf := '330020201318882-ACT202011191000000000012841005210105201115000000000003700R CT0089645201L27ADMIN   2020111915495733V 000000000000000';
-	linebuf := '330020200181734-ACT202011201000000000012841001210105201115000000000008400R CT0089645201L27ADMIN   2020111915495733V 000000000000000';
+	--variable para probar trama
+	linebuf := '';
 	
-	IF linebuf IS NOT NULL AND SUBSTR(linebuf, 1, 2) = vCodSVC THEN
+	IF linebuf IS NOT NULL AND SUBSTR(linebuf, 1, LEN(vIdentificador)) = vIdentificador THEN
 		SELECT COUNT(*) 
 		INTO vValidaTrama 
 		FROM RECAUDACIONBANCO
@@ -28,53 +27,91 @@ BEGIN
 			cRecauda.codigobanco			:= 5;		-- Codigo Banco en Datosbanco -- ScotiaBank
 
 			BEGIN
-				vNrocli						:= SUBSTR(linebuf, 44, 15);
-				vNroSer						:= SUBSTR(linebuf, 5, 15);
+				cRecauda.periodosolicitud  	:= SUBSTR(linebuf, 1, 4);
+				cRecauda.numerosolicitud   	:= SUBSTR(linebuf, 5, 7);
 
-				cRecauda.nombrecliente		:= PKG_PERSONA.F_OBT_NOMBRECOMPLETO(TO_NUMBER(TRIM(SUBSTR(linebuf, 29, 15))));
+				cRecauda.numerocuota		:= SUBSTR(linebuf, 13, 4);
 
-				cRecauda.numerocuota		:= SUBSTR(vNrocli, 0, 3);
+				--Situacion de pago
+				----SUBSTR(linebuf, 17, 2);
 
-				cRecauda.tipopago			:= SUBSTR(vNroSer, 13, 3);
+				cRecauda.moneda           	:= SUBSTR(linebuf, 19, 1); --1:Soles 2:Dolares
+
+	            cRecauda.codigosocio		:= PKG_PRESTAMO.F_OBT_CODIGOPERSONA(cRecauda.periodosolicitud, cRecauda.numerosolicitud);
+
+				--Nombre Cliente Retorna
+				----SUBSTR(linebuf, 20, 60);
+				----PKG_PRESTAMO.F_OBT_CODIGOPERSONA(cRecauda.periodosolicitud, cRecauda.numerosolicitud)
+				cRecauda.nombrecliente		:= PKG_PERSONA.F_OBT_NOMBRECOMPLETO(cRecauda.codigosocio);
+
+				--Importe Cuota
+				cRecauda.importeorigen 		:= TO_NUMBER(SUBSTR(linebuf, 80, 15)) / 100;
+
+				cRecauda.fechavencimiento 	:= TO_DATE 	(
+														SUBSTR(linebuf, 95, 4)||'-'||
+														SUBSTR(linebuf, 99, 2)||'-'||
+														SUBSTR(linebuf, 101, 2),
+														'YYYY-MM-DD'
+														);
+
+				--Indicador de la Tasa
+				----SUBSTR(linebuf, 103, 1);
+
+				--Factor Mora
+				----TO_NUMBER(SUBSTR(linebuf, 104, 15)) / 100;
+
+				--Factor Compensatorio
+				----TO_NUMBER(SUBSTR(linebuf, 119, 15)) / 100;
+
+				--Importe Gastos
+				----TO_NUMBER(SUBSTR(linebuf, 134, 15)) / 100;
+
+				--Cuenta Cliente
+				----SUBSTR(linebuf, 149, 11);
+
+				--Orden Cobro. Variable que retorna, contiene ACT/ATR - Fecha envio (YYYYMMDD)
+				vOrdenCobro = SUBSTR(linebuf, 160, 12);
+
+				cRecauda.tipopago = SUBSTR(vOrdenCobro, 1, 3);
+				cRecauda.fechaenvio =  TO_DATE 	(
+														SUBSTR(vOrdenCobro, 5, 4)||'-'||
+														SUBSTR(vOrdenCobro, 9, 2)||'-'||
+														SUBSTR(vOrdenCobro, 11, 2),
+														'YYYY-MM-DD'
+														);
+
+				--Mora
+				----TO_NUMBER(SUBSTR(linebuf, 172, 15)) / 100;
+				cRecauda.importemora 		:= 0;
+
+				--Compensacion
+				----TO_NUMBER(SUBSTR(linebuf, 187, 15)) / 100;
+
+				--Importe Cobrado
+				----cRecauda.importedepositado 	:= TO_NUMBER(SUBSTR(linebuf, 202, 15)) / 100;
+				----cRecauda.importedepositado 	:= cRecauda.importeorigen;
+				cRecauda.importedepositado 	:= TO_NUMBER(SUBSTR(linebuf, 202, 15)) / 100;
 	            
-				cRecauda.referencias      	:= SUBSTR(linebuf, 78, 21);
-				cRecauda.moneda           	:= SUBSTR(linebuf, 28, 1);
+				--Agencia de cobro
+				----SUBSTR(linebuf, 217, 4);
+				cRecauda.oficinapago 		:= SUBSTR(linebuf, 217, 4);
+
+				cRecauda.fechapago 			:= TO_DATE(
+														SUBSTR(linebuf, 221, 4) || '-' ||
+														SUBSTR(linebuf, 225, 2) || '-' ||
+														SUBSTR(linebuf, 227, 2)
+													, 'YYYY-MM-DD'
+													);
+				
+				--Hora Cobro HHMMSS
+				cRecauda.referencias      	:= SUBSTR(linebuf, 229, 6);
+
+				--Espacios Vacios
+				----SUBSTR(linebuf, 235, 60);
 
 				cRecauda.numerocuentabanco 	:= pkg_datosbanco.f_obt_cuentabancorecauda(cRecauda.codigobanco, cRecauda.moneda);
 
-				cRecauda.periodosolicitud  	:= SUBSTR(vNroSer, 1, 4);
-				cRecauda.numerosolicitud   	:= SUBSTR(vNroSer, 5, 7);
-	            
-				SELECT b.CIP INTO cRecauda.codigosocio
-				FROM PRESTAMO a,PERSONA b
-				WHERE a.PERIODOSOLICITUD=cRecauda.periodosolicitud
-					AND a.NUMEROSOLICITUD=cRecauda.numerosolicitud
-					AND b.CODIGOPERSONA=a.CODIGOPERSONA
-					AND ROWNUM = 1;
-
-				cRecauda.importeorigen 		:= TO_NUMBER(LTRIM(SUBSTR(linebuf, 62, 10), '0') || '.' || SUBSTR(linebuf, 72, 2), '9999999.99');
-				cRecauda.importedepositado 	:= cRecauda.importeorigen;
-
-				cRecauda.importemora 		:= 0;
-				--cRecauda.oficinapago 		:= SUBSTR(linebuf, 82, 9);
-	            cRecauda.oficinapago 		:= 0;
-				cRecauda.nromovimiento 		:= vNrocli;
-
-				cRecauda.fechaenvio 		:= TO_DATE 	(
-														SUBSTR(vNrocli, -2, 2)||'/'||
-														SUBSTR(vNrocli, -4, 2)||'/'||
-														SUBSTR(vNrocli, -6, 2),
-														'DD/MM/RR'
-														);
-
-				cRecauda.fechavencimiento 	:= TO_DATE 	(
-														SUBSTR(vNrocli, -8, 2)||'/'||
-														SUBSTR(vNrocli, -10, 2)||'/'||
-														SUBSTR(vNrocli, -12, 2),
-														'DD/MM/RR'
-														);
-
-				cRecauda.fechapago 			:= TO_DATE(SUBSTR(linebuf, 26, 2) || '/' || SUBSTR(linebuf, 24, 2) || '/' || SUBSTR(linebuf, 20, 4), 'DD/MM/RRRR');
+				--cRecauda.nromovimiento 		:= vNrocli;
 
 				cRecauda.fechaproceso 		:= SYSDATE;
 				cRecauda.usuarioproceso 	:= USER;
@@ -221,4 +258,4 @@ END;
 
 SELECT * FROM RECAUDACIONBANCO ORDER BY FECHACARGA DESC;
 
-DELETE FROM RECAUDACIONBANCO WHERE TRAMA = '330020200181283-ACT202011191000000000012841004210105201103000000000002600R CT0089645201L27ADMIN   2020111915495733V 000000000000000';
+DELETE FROM RECAUDACIONBANCO WHERE TRAMA = '';

@@ -2,11 +2,13 @@
 
 --CREATE TABLE SISGODBA.RECAUDABANCONACIONSOLES
 --(
---  CAMPO  VARCHAR2(500 BYTE)
+--  TIPO    NUMBER(1),
+--  CAMPO   VARCHAR2(500 BYTE)
 --)
 --CREATE TABLE SISGODBA.RECAUDABANCONACIONDOLARES
 --(
---  CAMPO  VARCHAR2(500 BYTE)
+--  TIPO    NUMBER(1),
+--  CAMPO   VARCHAR2(500 BYTE)
 --)
 
 
@@ -15,6 +17,10 @@
 --         ELSE
 --          DELETE FROM RECAUDABANCONACIONDOLARES;
 --         END IF;
+
+--TIPO 0: Importe en soles
+--TIPO 1: Importe en dolares
+--TIPO 2: Trama
 
 DECLARE
 	PIFECHA DATE := '20/02/2021';
@@ -396,7 +402,6 @@ DECLARE
     --Datos BancoNacion--
 
     --Tipos de Registo
-    vCabeceraBN        VARCHAR2(400);
     vDetalleBN         VARCHAR2(400);
     --
 
@@ -480,9 +485,13 @@ FOR x IN detalle LOOP
         IF PIMONEDA = 1 THEN
             vMonedaBN := '1';
             vCodigoCuentaBN := vCodigoCuentaMNBN;
+            INSERT INTO RECAUDABANCONACIONSOLES ( tipo, campo ) VALUES ( 0, vSumaCredito ); 
+            INSERT INTO RECAUDABANCONACIONSOLES ( tipo, campo ) VALUES ( 1, vContaCredito ); 
         ELSE
             vMonedaBN := '2';
             vCodigoCuentaBN := vCodigoCuentaMEBN;
+            INSERT INTO RECAUDABANCONACIONDOLARES ( tipo, campo ) VALUES ( 0, vSumaCredito ); 
+            INSERT INTO RECAUDABANCONACIONDOLARES ( tipo, campo ) VALUES ( 1, vContaCredito ); 
         END IF;
         
 
@@ -496,12 +505,6 @@ FOR x IN detalle LOOP
                         TO_CHAR(HOY, 'YYYYMMDD') ||                 --Fecha de proceso
                         vTipoRegistroBN ||                              --Tipo Registro
                         LPAD(' ', 226, ' ');                        --Espacios
-
-        IF PIMONEDA = 1 THEN
-            INSERT INTO RECAUDABANCONACIONSOLES ( campo ) VALUES ( vCabeceraBN );
-        ELSE
-            INSERT INTO RECAUDABANCONACIONDOLARES ( campo ) VALUES ( vCabeceraBN );
-        END IF;
 
 	FOR x IN detalle LOOP
         vTipoPersona := pkg_persona.f_obt_tipopersona( x.codigopersona );
@@ -572,9 +575,9 @@ FOR x IN detalle LOOP
                     IF x.Tipoproducto <> 'PTP' THEN
                         IF NVL(vMontoadeudado, 0) < 10000000 THEN
                             IF PIMONEDA = 1 THEN
-                                INSERT INTO RECAUDABANCONACIONSOLES ( campo ) VALUES ( vDetalleBN );
+                                INSERT INTO RECAUDABANCONACIONSOLES ( 2, campo ) VALUES ( vDetalleBN );
                             ELSE
-                                INSERT INTO RECAUDABANCONACIONDOLARES ( campo ) VALUES ( vDetalleBN );
+                                INSERT INTO RECAUDABANCONACIONDOLARES ( 2, campo ) VALUES ( vDetalleBN );
                             END IF;
                         END IF;
                     END IF;
@@ -586,4 +589,5 @@ FOR x IN detalle LOOP
          COMMIT;  --IBK
 END;
 
-select * from recaudabanconacion order by 1 asc;
+select * from RECAUDABANCONACIONSOLES order by 1 asc;
+select * from RECAUDABANCONACIONDOLARES order by 1 asc;
