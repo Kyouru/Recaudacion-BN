@@ -1,9 +1,21 @@
 --9:00
 
---CREATE TABLE SISGODBA.RECAUDABANCONACION
+--CREATE TABLE SISGODBA.RECAUDABANCONACIONSOLES
 --(
 --  CAMPO  VARCHAR2(500 BYTE)
 --)
+--CREATE TABLE SISGODBA.RECAUDABANCONACIONDOLARES
+--(
+--  CAMPO  VARCHAR2(500 BYTE)
+--)
+
+
+--         IF PIMONEDA = 1 THEN
+--          DELETE FROM RECAUDABANCONACIONSOLES;
+--         ELSE
+--          DELETE FROM RECAUDABANCONACIONDOLARES;
+--         END IF;
+
 DECLARE
 	PIFECHA DATE := '20/02/2021';
 	PIMONEDA NUMBER := 2;
@@ -405,7 +417,11 @@ DECLARE
 
 BEGIN
 
-	EXECUTE IMMEDIATE 'TRUNCATE TABLE recaudabanconacion';
+    IF PIMONEDA = 1 THEN
+        DELETE FROM RECAUDABANCONACIONSOLES;
+    ELSE
+        DELETE FROM RECAUDABANCONACIONDOLARES;
+    END IF;
 	COMMIT;
 
 	EXECUTE IMMEDIATE 'ALTER SESSION set NLS_LANGUAGE = "SPANISH" ';
@@ -481,7 +497,11 @@ FOR x IN detalle LOOP
                         vTipoRegistroBN ||                              --Tipo Registro
                         LPAD(' ', 226, ' ');                        --Espacios
 
-         INSERT INTO recaudabanconacion ( campo ) VALUES ( vCabeceraBN );
+        IF PIMONEDA = 1 THEN
+            INSERT INTO RECAUDABANCONACIONSOLES ( campo ) VALUES ( vCabeceraBN );
+        ELSE
+            INSERT INTO RECAUDABANCONACIONDOLARES ( campo ) VALUES ( vCabeceraBN );
+        END IF;
 
 	FOR x IN detalle LOOP
         vTipoPersona := pkg_persona.f_obt_tipopersona( x.codigopersona );
@@ -538,7 +558,7 @@ FOR x IN detalle LOOP
                         LPAD(0 * 100, 15, '0') || --Interes Compuesto
                         LPAD(0 * 100, 15, '0') || --Interes Moratorio
                         LPAD(0 * 100, 15, '0') || --Importe ITF
-                        LPAD(' ', 49, '0'); --Espacios Reservados
+                        LPAD(' ', 49, ' '); --Espacios Reservados
                                 
              IF NVL (vTotalAmortizacion, 0) > 0 THEN
                 IF NVL (x.Monto_Minimo, 0) >= 0
@@ -551,7 +571,11 @@ FOR x IN detalle LOOP
                 THEN
                     IF x.Tipoproducto <> 'PTP' THEN
                         IF NVL(vMontoadeudado, 0) < 10000000 THEN
-                            INSERT INTO recaudabanconacion ( campo ) VALUES ( vDetalleBN );
+                            IF PIMONEDA = 1 THEN
+                                INSERT INTO RECAUDABANCONACIONSOLES ( campo ) VALUES ( vDetalleBN );
+                            ELSE
+                                INSERT INTO RECAUDABANCONACIONDOLARES ( campo ) VALUES ( vDetalleBN );
+                            END IF;
                         END IF;
                     END IF;
                 END IF;
