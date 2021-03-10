@@ -494,18 +494,6 @@ FOR x IN detalle LOOP
             INSERT INTO RECAUDABANCONACIONDOLARES ( tipo, campo ) VALUES ( 1, vContaCredito ); 
         END IF;
         
-
-        vCabeceraBN :=  vCodBancoBN ||                                --Codigo Banco
-                        vCodClienteBN ||                              --Código Cliente
-                        LPAD(vContaCREDITO, 7, '0') ||              --Código de rubro
-                        LPAD((CASE WHEN (PIMONEDA) = 1 THEN NVL(vSumaCREDITO, 0) * 100 ELSE 0 END), 15, '0') ||
-                                                                    --Suma Total Soles
-                        LPAD((CASE WHEN (PIMONEDA) = 2 THEN NVL(vSumaCREDITO, 0) * 100 ELSE 0 END), 15, '0') ||
-                                                                    --Suma Total Dolares
-                        TO_CHAR(HOY, 'YYYYMMDD') ||                 --Fecha de proceso
-                        vTipoRegistroBN ||                              --Tipo Registro
-                        LPAD(' ', 226, ' ');                        --Espacios
-
 	FOR x IN detalle LOOP
         vTipoPersona := pkg_persona.f_obt_tipopersona( x.codigopersona );
         IF vTipoPersona = 1 THEN

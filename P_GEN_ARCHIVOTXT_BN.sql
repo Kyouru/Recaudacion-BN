@@ -5,7 +5,7 @@ PROCEDURE P_GEN_ARCHIVOTXT_BN IS
   v_archivo      UTL_FILE.FILE_TYPE;
   vDirectorio    VARCHAR2(500):='RECAUDABANCOS';
   vNombrearchivo VARCHAR2(500):=' ' ;
-  vPlantillaBancoNacion VARCHAR2(300):='@VALOR1@@VALORFECHA@@VALOR2@@VALOR3@@VALOR4@';
+  vPlantillaBancoNacion VARCHAR2(300):='@VALOR1@@VALORFECHA@@VALOR2@-@VALOR3@@VALOR4@';
 
   vTotalImporteSoles    NUMBER(15,2);
   vTotalImporteDolares    NUMBER(15,2);

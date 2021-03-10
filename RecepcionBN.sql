@@ -1,3 +1,11 @@
+
+--Ejecutar Pago tras procesar trama
+--DECLARE
+--    error VARCHAR2(200);
+--BEGIN
+--    PKG_RECAUDACIONBANCO.P_GEN_CANCELACUOTA(2, error, #PERIODO#, #SOLICITUD#, #ACT/ATR#, 2);
+--END;
+
 DECLARE
 	linebuf				VARCHAR2 (1000);
 	cRecauda			recaudacionbanco%ROWTYPE;
