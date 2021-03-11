@@ -1,32 +1,20 @@
---9:00
+--0:40
 
---CREATE TABLE SISGODBA.RECAUDABANCONACIONSOLES
---(
---  TIPO    NUMBER(1),
---  CAMPO   VARCHAR2(500 BYTE)
---)
---CREATE TABLE SISGODBA.RECAUDABANCONACIONDOLARES
---(
---  TIPO    NUMBER(1),
---  CAMPO   VARCHAR2(500 BYTE)
---)
+--PKG_RECAUDACIONENVIO.P_GEN_DATOSRECAUDACION
+--Solo Banco Nacion
 
-
---         IF PIMONEDA = 1 THEN
---          DELETE FROM RECAUDABANCONACIONSOLES;
---         ELSE
---          DELETE FROM RECAUDABANCONACIONDOLARES;
---         END IF;
-
---TIPO 0: Importe en soles
---TIPO 1: Importe en dolares
+--TIPO 0: Suma Importes
+--TIPO 1: Conteo Creditos
 --TIPO 2: Trama
 
 DECLARE
-	PIFECHA DATE := '20/02/2021';
+	PIFECHA DATE := '10/03/2021';
 	PIMONEDA NUMBER := 2;
+	vLimite NUMBER := 10; --Numero maximo de registros del cursor detalle
 
 	CURSOR detalle IS
+	SELECT * FROM
+	(
     SELECT 1 AS COD1,
            2 AS COD2,
            '02' AS TIP_REGISTRO,
@@ -372,67 +360,56 @@ DECLARE
               AND estado = 1
               AND CodigoPersona = pre.codigopersona
               AND tablaservicio=101
-              AND argumentoservicio IN (13,14));
+              AND argumentoservicio IN (13,14))
+      ) WHERE ROWNUM <= vLimite;
+
+    --Fin Cursor
 
 	vNumerocuota		prestamocuotas.numerocuota%TYPE;
 
 	vTotalAdeudado NUMBER(15,2):=0;
 	vTotalAmortizacion NUMBER(15,2):=0;
 	vMontoadeudado   NUMBER(15,2):=0;
-	vConteoTotal     NUMBER(9):=0;
 	vTipoPersona     NUMBER(1);
 	vNumeroDocumento VARCHAR2(15);
 	vTipodocumento   VARCHAR2(1);
 	vTipodocumentofin  VARCHAR2(1);
       vContaCREDITO      NUMBER(6):=0;
 	--
-	vSumaCREDITO       NUMBER(15,2):=0;
 	--
-	v01  VARCHAR2(2);
-	v02  VARCHAR2(2);
-	v03  VARCHAR2(2);
-	v04  VARCHAR2(2);
-	v05  VARCHAR2(2);
-	v06  VARCHAR2(2);
 	vMinimo NUMBER(15,2) :=0;
 	
 	vfechabloqueo date;
-	vSumaTotal NUMBER(15,2):=0;
 
     --Datos BancoNacion--
 
     --Tipos de Registo
-    vDetalleBN         VARCHAR2(400);
+    vDetalleBN              VARCHAR2(400);
     --
+    
+    vSituacionBN            VARCHAR2(2)     := '01';              --01: Pendiente recuperacion  03: Anulado
+    vTasaBN                 VARCHAR2(1)     := '0';               --0: Tasa determinada  1: Tasa con factores
+    vCodigoCuentaMNBN       VARCHAR2(11)    := '00068385520';     --Cuenta a abonar por Recuperaciones Soles
+    vCodigoCuentaMEBN       VARCHAR2(11)    := '06068002786';     --Cuenta a abonar por Recuperaciones Dolares
 
-    vCodBancoBN           VARCHAR2(3) := '018';
-    vCodClienteBN           VARCHAR2(4) := '0100';
-    vTipoRegistroBN          VARCHAR2(2) := '01';
-
-    vSituacionBN          VARCHAR2(2) := '01'; --01: Pendiente recuperacion  03: Anulado
-    vTasaBN               VARCHAR2(1) := '0';  --0: Tasa determinada  1: Tasa con factores
-    vCodigoCuentaMNBN        VARCHAR2(11) := '00068385520'; --cuenta a abonar por recuperaciones
-    vCodigoCuentaMEBN        VARCHAR2(11) := '06068002786'; --cuenta a abonar por recuperaciones
-
-    vTipoDetalleBN        VARCHAR2(2) := '13';
-
-    vMonedaBN          VARCHAR2(1) := '1';
-    vCodigoCuentaBN VARCHAR2(11);
+    vMonedaBN               VARCHAR2(1)     := '1';
+    vCodigoCuentaBN         VARCHAR2(11);
     --Fin Datos BancoNacion--
 
-BEGIN
 
+BEGIN
+    DBMS_OUTPUT.DISABLE;
     IF PIMONEDA = 1 THEN
         DELETE FROM RECAUDABANCONACIONSOLES;
     ELSE
         DELETE FROM RECAUDABANCONACIONDOLARES;
     END IF;
-	COMMIT;
 
 	EXECUTE IMMEDIATE 'ALTER SESSION set NLS_LANGUAGE = "SPANISH" ';
 	EXECUTE IMMEDIATE 'ALTER SESSION set NLS_TERRITORY = "SPAIN" ';
 
 FOR x IN detalle LOOP
+
              vTotalAmortizacion  := NVL(x.SALDOCAPITAL,0) + NVL(x.SEGUROINTERES,0) +  NVL(x.APORTES,0) + NVL(x.REAJUSTE,0);
              vMontoadeudado :=  vTotalAmortizacion + NVL(x.SALDOINTERES,0) +  NVL(x.SALDOMORA,0);
 
@@ -449,7 +426,6 @@ FOR x IN detalle LOOP
                        vTotalAdeudado := vTotalAdeudado + vMontoadeudado;
                        --vTotalMinimo   := vTotalMinimo + vminimo;
                        vContaCREDITO := vContaCREDITO + 1;
-                       vSumaCREDITO  := vSumaCREDITO + vMontoadeudado;
                        
                         --Insercion de la data enviada en los txt de recaudacion en la tabla RECAUDACIONENVIO -- David Chara 16-01-2020 
                         /*DECLARE
@@ -475,22 +451,20 @@ FOR x IN detalle LOOP
                         TIPOCUOTAENVIO,x.SALDOCAPITAL,x.SALDOMORA,x.SALDOINTERES,vMontoadeudado,SYSDATE,MONEDAENVIO,TO_CHAR(x.fechavencimiento,'DD/MM/YYYY'));
                         END;*/
                        --Insercion de la data enviada en los txt de recaudacion en la tabla RECAUDACIONENVIO -- David Chara 16-01-2020
-                       
-                                             
+
                     END IF;
                 END IF;
              END IF;
-
          END LOOP;
         IF PIMONEDA = 1 THEN
             vMonedaBN := '1';
             vCodigoCuentaBN := vCodigoCuentaMNBN;
-            INSERT INTO RECAUDABANCONACIONSOLES ( tipo, campo ) VALUES ( 0, vSumaCredito ); 
+            INSERT INTO RECAUDABANCONACIONSOLES ( tipo, campo ) VALUES ( 0, vTotalAdeudado ); 
             INSERT INTO RECAUDABANCONACIONSOLES ( tipo, campo ) VALUES ( 1, vContaCredito ); 
         ELSE
             vMonedaBN := '2';
             vCodigoCuentaBN := vCodigoCuentaMEBN;
-            INSERT INTO RECAUDABANCONACIONDOLARES ( tipo, campo ) VALUES ( 0, vSumaCredito ); 
+            INSERT INTO RECAUDABANCONACIONDOLARES ( tipo, campo ) VALUES ( 0, vTotalAdeudado ); 
             INSERT INTO RECAUDABANCONACIONDOLARES ( tipo, campo ) VALUES ( 1, vContaCredito ); 
         END IF;
         
@@ -508,7 +482,7 @@ FOR x IN detalle LOOP
         --
 
         vTotalAmortizacion  := NVL(x.SALDOCAPITAL,0) + NVL(x.SEGUROINTERES,0) +  NVL(x.APORTES,0) + NVL(x.REAJUSTE,0);
-        vMontoadeudado :=  vTotalAmortizacion + NVL(x.SALDOINTERES,0) +  NVL(x.SALDOMORA,0);
+        vMontoadeudado :=  vTotalAmortizacion + NVL(x.SALDOINTERES,0) + NVL(x.SALDOMORA,0);
 
         vMinimo  := vMontoadeudado;
 
@@ -525,31 +499,36 @@ FOR x IN detalle LOOP
             vNumerocuota := x.numerocuota;
         END IF;
 
-        vDetalleBN :=  RPAD(x.PeriodoSolicitud || x.NumeroSolicitud, 12, ' ') ||        --Numero de credito
-                        LPAD(x.numerocuota, 4, '0') ||  --Num. Cuota
-                        vSituacionBN ||       --Situación del Contrato
-                        vMonedaBN ||        --Moneda
-                        CASE PKG_PERSONA.F_OBT_TIPOPERSONA(x.codigopersona)
-                            WHEN 1 THEN
-                                RPAD(PKG_PERSONANATURAL.F_OBT_APELLIDOPATERNO(x.codigopersona), 20, ' ') ||        --Apellido paterno
-                                RPAD(PKG_PERSONANATURAL.F_OBT_APELLIDOMATERNO(x.codigopersona), 20, ' ') ||        --Apellido materno
-                                RPAD(PKG_PERSONANATURAL.F_OBT_NOMBRES(x.codigopersona), 20, ' ')        --Nombres
-                            WHEN 2 THEN
-                                RPAD(REPLACE(REPLACE(REPLACE(PKG_PERSONA.F_OBT_NOMBRECOMPLETO(x.codigopersona), '''', ''), ' & ', ' Y '), '&', ' Y '), 60, ' ')
-                        END ||
-                        LPAD(FLOOR((NVL(vMontoadeudado, 0) * 100)), 15, '0') || --Importe Cuota
-                        TO_CHAR(x.fechavencimiento, 'YYYYMMDD') ||  --Fecha de vencimiento
-                        vTasaBN || --Tasa // 0:Tasa Determinada / 1:Tasa con Factores
-                        LPAD(0 * 10000000, 15, '0') || --Factores Moratorio / 7 Decimales
-                        LPAD(0 * 10000000, 15, '0') || --Factores Compensatorio / 7 Decimales
-                        LPAD(0 * 100, 15, '0') || --Gasto de Cobranza / 2 Decimales
-                        RPAD(vCodigoCuentaBN, 11, ' ') ||                                      --Código de cuenta
-                        RPAD(SUBSTR(x.pago_id, -3, 3) || '-' || TO_CHAR(HOY, 'YYYYMMDD'), 12, '0') ||                 --Orden de Cobro
-                        LPAD((NVL(x.SALDOCAPITAL, 0) + NVL(x.SALDOINTERES, 0) + NVL(x.SALDOMORA, 0) + NVL(x.SEGUROINTERES, 0) + NVL(x.APORTES, 0) + NVL(x.REAJUSTE, 0)) * 100, 15, '0') ||          --Saldo
-                        LPAD(0 * 100, 15, '0') || --Interes Compuesto
-                        LPAD(0 * 100, 15, '0') || --Interes Moratorio
-                        LPAD(0 * 100, 15, '0') || --Importe ITF
-                        LPAD(' ', 49, ' '); --Espacios Reservados
+        vDetalleBN :=   LPAD(x.PeriodoSolicitud || x.NumeroSolicitud, 12, '0') ||                                       --Numero de credito
+                        LPAD(x.numerocuota, 4, '0') ||                                                                  --Num. Cuota
+                        vSituacionBN ||                                                                                 --Situación del Contrato
+                        vMonedaBN ||                                                                                    --Moneda
+                        TRANSLATE(
+                            CASE PKG_PERSONA.F_OBT_TIPOPERSONA(x.codigopersona)
+                                WHEN 1 THEN
+                                    RPAD(PKG_PERSONANATURAL.F_OBT_APELLIDOPATERNO(x.codigopersona), 20, ' ') ||         --Apellido paterno
+                                    RPAD(PKG_PERSONANATURAL.F_OBT_APELLIDOMATERNO(x.codigopersona), 20, ' ') ||         --Apellido materno
+                                    RPAD(PKG_PERSONANATURAL.F_OBT_NOMBRES(x.codigopersona), 20, ' ')                    --Nombres
+                                WHEN 2 THEN
+                                    RPAD(REPLACE(REPLACE(REPLACE(PKG_PERSONA.F_OBT_NOMBRECOMPLETO(x.codigopersona), '''', ''), ' & ', ' Y '), '&', ' Y '), 60, ' ')
+                            END, 'áéíóúÁÉÍÓÚñÑ''&-', 'aeiouAEIOUnN   ') ||
+                        LPAD(FLOOR((NVL(vMontoadeudado, 0) * 100)), 15, '0') ||                                         --Importe Cuota
+                        TO_CHAR(vfechabloqueo + 2, 'YYYYMMDD') ||                                                       --Fecha de vencimiento
+                        vTasaBN ||                                                                                      --Tasa // 0:Tasa Determinada / 1:Tasa con Factores
+                        LPAD(0 * 10000000, 15, '0') ||                                                                  --Factores Moratorio / 7 Decimales
+                        LPAD(0 * 10000000, 15, '0') ||                                                                  --Factores Compensatorio / 7 Decimales
+                        LPAD(0 * 100, 15, '0') ||                                                                       --Gasto de Cobranza / 2 Decimales
+                        LPAD(vCodigoCuentaBN, 11, ' ') ||                                                               --Código de cuenta
+                        LPAD(
+                            SUBSTR(x.NumeroSolicitud, -5, 5) ||
+                            CASE SUBSTR(x.pago_id, -3, 3) WHEN 'ACT' THEN '1' ELSE '2' END ||
+                            TO_CHAR(HOY, 'YYMMDD'), 12, '0'
+                            ) ||                                                                                        --Orden de Cobro (NumeroSolicitud|TipoPago|FechaEnvio) YYMMDD
+                        LPAD(vTotalAmortizacion * 100, 15, '0') ||                                                      --Saldo
+                        LPAD(NVL(x.SALDOINTERES,0) * 100, 15, '0') ||                                                   --Interes Compuesto
+                        LPAD(NVL(x.SALDOMORA,0) * 100, 15, '0') ||                                                      --Interes Moratorio
+                        LPAD(0 * 100, 15, '0');                                                                         --Importe ITF
+                        --LPAD('0', 49, '0');                                                                           --Espacios Reservados
                                 
              IF NVL (vTotalAmortizacion, 0) > 0 THEN
                 IF NVL (x.Monto_Minimo, 0) >= 0
@@ -561,21 +540,15 @@ FOR x IN detalle LOOP
                    AND NVL (x.REAJUSTE, 0) >= 0
                 THEN
                     IF x.Tipoproducto <> 'PTP' THEN
-                        IF NVL(vMontoadeudado, 0) < 10000000 THEN
-                            IF PIMONEDA = 1 THEN
-                                INSERT INTO RECAUDABANCONACIONSOLES ( 2, campo ) VALUES ( vDetalleBN );
-                            ELSE
-                                INSERT INTO RECAUDABANCONACIONDOLARES ( 2, campo ) VALUES ( vDetalleBN );
-                            END IF;
+                        IF PIMONEDA = 1 THEN
+                            INSERT INTO RECAUDABANCONACIONSOLES ( tipo, campo ) VALUES ( 2, vDetalleBN );
+                        ELSE
+                            INSERT INTO RECAUDABANCONACIONDOLARES ( tipo, campo ) VALUES ( 2, vDetalleBN );
                         END IF;
                     END IF;
                 END IF;
              END IF;
          END LOOP;
-
-         --
-         COMMIT;  --IBK
+         --COMMIT;
+    DBMS_OUTPUT.ENABLE;
 END;
-
-select * from RECAUDABANCONACIONSOLES order by 1 asc;
-select * from RECAUDABANCONACIONDOLARES order by 1 asc;
