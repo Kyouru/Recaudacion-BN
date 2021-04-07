@@ -503,15 +503,17 @@ FOR x IN detalle LOOP
                         LPAD(x.numerocuota, 4, '0') ||                                                                  --Num. Cuota
                         vSituacionBN ||                                                                                 --Situación del Contrato
                         vMonedaBN ||                                                                                    --Moneda
-                        TRANSLATE(
+                        REPLACE(REPLACE(TRANSLATE(
                             CASE PKG_PERSONA.F_OBT_TIPOPERSONA(x.codigopersona)
                                 WHEN 1 THEN
                                     RPAD(PKG_PERSONANATURAL.F_OBT_APELLIDOPATERNO(x.codigopersona), 20, ' ') ||         --Apellido paterno
                                     RPAD(PKG_PERSONANATURAL.F_OBT_APELLIDOMATERNO(x.codigopersona), 20, ' ') ||         --Apellido materno
-                                    RPAD(PKG_PERSONANATURAL.F_OBT_NOMBRES(x.codigopersona), 20, ' ')                    --Nombres
+                                    RPAD(PKG_PERSONANATURAL.F_OBT_NOMBRES(x.codigopersona), 13, ' ')                    --Nombres
                                 WHEN 2 THEN
-                                    RPAD(REPLACE(REPLACE(REPLACE(PKG_PERSONA.F_OBT_NOMBRECOMPLETO(x.codigopersona), '''', ''), ' & ', ' Y '), '&', ' Y '), 60, ' ')
-                            END, 'áéíóúÁÉÍÓÚñÑ''&-', 'aeiouAEIOUnN   ') ||
+                                    RPAD(REPLACE(REPLACE(REPLACE(PKG_PERSONA.F_OBT_NOMBRECOMPLETO(x.codigopersona), '''', ''), ' & ', ' Y '), '&', ' Y '), 53, ' ')
+                            END, 'áéíóúÁÉÍÓÚñÑ''&-', 'aeiouAEIOUnN   '), CHR(10), ''), CHR(13), '') ||
+                            CASE SUBSTR(x.pago_id, -3, 3) WHEN 'ACT' THEN '1' ELSE '2' END ||
+                            TO_CHAR(HOY, 'YYMMDD') ||
                         LPAD(FLOOR((NVL(vMontoadeudado, 0) * 100)), 15, '0') ||                                         --Importe Cuota
                         TO_CHAR(vfechabloqueo + 2, 'YYYYMMDD') ||                                                       --Fecha de vencimiento
                         vTasaBN ||                                                                                      --Tasa // 0:Tasa Determinada / 1:Tasa con Factores

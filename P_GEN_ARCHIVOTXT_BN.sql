@@ -1,7 +1,7 @@
 
 --NUEVO PROCEDIMIENTO EN PKG_RECAUDACIONENVIO
 
---PROCEDURE P_GEN_ARCHIVOTXT_BN IS
+--PROCEDURE P_GEN_ARCHIVOTXTBN IS
 DECLARE
     v_archivo               UTL_FILE.FILE_TYPE;
     vDirectorio             VARCHAR2(500)       := 'RECAUDABANCOS';
@@ -21,16 +21,16 @@ DECLARE
 
     --Cursor Trama
     CURSOR cBN IS
-    SELECT CAMPO FROM RECAUDABANCONACIONSOLES WHERE TIPO = 2
+    SELECT CAMPO FROM recaudabanconacionsoles WHERE TIPO = 2
     UNION ALL
-    SELECT CAMPO FROM RECAUDABANCONACIONDOLARES WHERE TIPO = 2;
+    SELECT CAMPO FROM recaudabanconaciondolares WHERE TIPO = 2;
 
     BEGIN
         DBMS_OUTPUT.ENABLE;
-        SELECT CAMPO INTO vTotalImporteSoles FROM RECAUDABANCONACIONSOLES WHERE TIPO = 0;
-        SELECT CAMPO INTO vTotalImporteDolares FROM RECAUDABANCONACIONDOLARES WHERE TIPO = 0;
-        SELECT CAMPO INTO vTotalRegistroSoles FROM RECAUDABANCONACIONSOLES WHERE TIPO = 1;
-        SELECT CAMPO INTO vTotalRegistroDolares FROM RECAUDABANCONACIONDOLARES WHERE TIPO = 1;
+        SELECT CAMPO INTO vTotalImporteSoles FROM recaudabanconacionsoles WHERE TIPO = 0;
+        SELECT CAMPO INTO vTotalImporteDolares FROM recaudabanconaciondolares WHERE TIPO = 0;
+        SELECT CAMPO INTO vTotalRegistroSoles FROM recaudabanconacionsoles WHERE TIPO = 1;
+        SELECT CAMPO INTO vTotalRegistroDolares FROM recaudabanconaciondolares WHERE TIPO = 1;
 
         vCabeceraBN :=  vCodBancoBN ||                                                     --Codigo Banco
                         vCodClienteBN ||                                                   --Código Cliente
@@ -60,4 +60,4 @@ DECLARE
     EXCEPTION WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('ERROR GENERAR TXT BANCO NACION');
         --UTL_FILE.FCLOSE(v_archivo);
-END P_GEN_ARCHIVOTXT_BN;
+END P_GEN_ARCHIVOTXTBN;
